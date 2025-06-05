@@ -1,4 +1,4 @@
-// Dashboard de Cargas - CON GMAIL
+// Dashboard de Cargas - VERSION FINAL CON FILTROS
 const express = require('express');
 const path = require('path');
 const { google } = require('googleapis');
@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 
 // Crear aplicación Express
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Configuración de vistas
 app.set('view engine', 'ejs');
@@ -22,6 +22,7 @@ let cargas = [];
 let ultimaActualizacion = new Date();
 let estadoConexion = 'desconectado';
 let oAuth2Client = null;
+let busquedaActual = 'Carga dodedero'; // Búsqueda por defecto
 
 // Configuración OAuth2
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
@@ -30,6 +31,10 @@ const TOKEN_PATH = 'token.json';
 // Cargar credenciales
 async function cargarCredenciales() {
     try {
+        // En producción, usar variable de entorno
+        if (process.env.GOOGLE_CREDENTIALS) {
+            return JSON.parse(process.env.GOOGLE_CREDENTIALS);
+        }
         const content = await fs.readFile('credentials.json');
         return JSON.parse(content);
     } catch (err) {
@@ -47,7 +52,14 @@ async function autorizar() {
     oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
     try {
-        const token = await fs.readFile(TOKEN_PATH);
+        // En producción, buscar token en variable de entorno también
+        let token;
+        if (process.env.GOOGLE_TOKEN) {
+            token = process.env.GOOGLE_TOKEN;
+        } else {
+            token = await fs.readFile(TOKEN_PATH);
+        }
+        
         oAuth2Client.setCredentials(JSON.parse(token));
         estadoConexion = 'conectado';
         console.log('✅ Conectado a Gmail');
@@ -58,22 +70,23 @@ async function autorizar() {
     }
 }
 
-// Buscar emails con cargas
-async function buscarCargas(auth) {
+// Buscar emails con filtro personalizable
+async function buscarCargas(auth, filtro = null) {
     if (!auth) return [];
     
     const gmail = google.gmail({ version: 'v1', auth });
+    const busqueda = filtro || busquedaActual;
     
     try {
-        // Buscar emails
+        // Buscar emails con el filtro actual
         const res = await gmail.users.messages.list({
             userId: 'me',
-            q: 'subject:"Carga dodedero"',
-            maxResults: 20
+            q: `subject:"${busqueda}"`,
+            maxResults: 50
         });
 
         const messages = res.data.messages || [];
-        console.log(`📧 Encontrados ${messages.length} emails`);
+        console.log(`📧 Buscando: "${busqueda}" - Encontrados ${messages.length} emails`);
 
         // Limpiar array
         cargas = [];
@@ -92,18 +105,24 @@ async function buscarCargas(auth) {
                 const fecha = headers.find(h => h.name === 'Date')?.value || '';
                 const para = headers.find(h => h.name === 'To')?.value || '';
 
-                // Extraer número de carga
-                const match = asunto.match(/Carga dodedero (\d+)/i);
-                const numeroCarga = match ? match[1] : 'Sin número';
+                // Extraer información relevante del asunto
+                let numeroReferencia = 'N/A';
+                
+                // Intentar extraer números del asunto
+                const numeros = asunto.match(/\d+/);
+                if (numeros) {
+                    numeroReferencia = numeros[0];
+                }
 
                 cargas.push({
                     id: message.id,
-                    numeroCarga: numeroCarga,
+                    numeroReferencia: numeroReferencia,
                     empleado: para,
                     de: de,
                     fecha: new Date(fecha),
                     fechaFormateada: new Date(fecha).toLocaleString('es-AR'),
-                    asunto: asunto
+                    asunto: asunto,
+                    busqueda: busqueda
                 });
             } catch (error) {
                 console.error('Error procesando mensaje:', error);
@@ -129,15 +148,45 @@ app.get('/', async (req, res) => {
         cargas: cargas,
         ultimaActualizacion: ultimaActualizacion.toLocaleString('es-AR'),
         estadoConexion: estadoConexion,
-        totalCargas: cargas.length
+        totalCargas: cargas.length,
+        busquedaActual: busquedaActual
     });
+});
+
+// Ruta para cambiar búsqueda
+app.post('/cambiar-busqueda', async (req, res) => {
+    const { nuevaBusqueda } = req.body;
+    
+    if (nuevaBusqueda && nuevaBusqueda.trim()) {
+        busquedaActual = nuevaBusqueda.trim();
+        console.log(`🔍 Búsqueda cambiada a: "${busquedaActual}"`);
+        
+        // Actualizar resultados con nueva búsqueda
+        const auth = await autorizar();
+        if (auth) {
+            await buscarCargas(auth);
+        }
+    }
+    
+    res.redirect('/');
 });
 
 // Ruta para iniciar autorización
 app.get('/auth', async (req, res) => {
     const credentials = await cargarCredenciales();
     if (!credentials) {
-        return res.send('Error: No se encontró credentials.json');
+        return res.send(`
+            <html>
+            <body style="font-family: Arial; padding: 20px;">
+                <h1>❌ Error de Configuración</h1>
+                <p>No se encontraron las credenciales de Google.</p>
+                <p>En producción, necesitas configurar la variable de entorno GOOGLE_CREDENTIALS.</p>
+                <a href="/" style="background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px;">
+                    Volver al Dashboard
+                </a>
+            </body>
+            </html>
+        `);
     }
 
     const { client_secret, client_id, redirect_uris } = credentials.web || credentials.installed;
@@ -193,12 +242,18 @@ app.post('/auth/callback', async (req, res) => {
         
         estadoConexion = 'conectado';
         console.log('✅ Autorización exitosa');
+        console.log('📝 Token guardado:', tokens);
         
         res.send(`
             <html>
             <body style="font-family: Arial; padding: 20px; text-align: center;">
                 <h1>✅ ¡Autorización exitosa!</h1>
                 <p>Ya podés volver al dashboard</p>
+                <p style="background: #f0f0f0; padding: 10px; border-radius: 5px; margin: 20px 0;">
+                    <strong>Token para Render:</strong><br>
+                    <code style="font-size: 12px; word-break: break-all;">${JSON.stringify(tokens)}</code>
+                </p>
+                <p>👆 Copiá este token para configurarlo en Render</p>
                 <a href="/" style="background: #34a853; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px;">
                     Ir al Dashboard
                 </a>
@@ -220,8 +275,24 @@ app.get('/api/cargas', (req, res) => {
         cargas: cargas,
         ultimaActualizacion: ultimaActualizacion,
         estadoConexion: estadoConexion,
-        totalCargas: cargas.length
+        totalCargas: cargas.length,
+        busquedaActual: busquedaActual
     });
+});
+
+// API para búsquedas sugeridas
+app.get('/api/sugerencias', (req, res) => {
+    const sugerencias = [
+        'Carga dodedero',
+        'Factura',
+        'Remito',
+        'Pedido',
+        'Despacho',
+        'Orden de compra',
+        'Confirmación',
+        'Envío'
+    ];
+    res.json(sugerencias);
 });
 
 // Actualizar cargas
@@ -230,7 +301,7 @@ async function actualizarCargas() {
     const auth = await autorizar();
     if (auth) {
         await buscarCargas(auth);
-        console.log(`✅ ${cargas.length} cargas encontradas`);
+        console.log(`✅ ${cargas.length} emails encontrados con "${busquedaActual}"`);
     }
 }
 
@@ -245,6 +316,7 @@ app.listen(PORT, async () => {
 ╠══════════════════════════════════════════╣
 ║  🌐 URL: http://localhost:${PORT}            ║
 ║  📅 Fecha: ${new Date().toLocaleString('es-AR')}
+║  🔍 Búsqueda: "${busquedaActual}"       ║
 ║  ⚙️ Estado: Iniciando...                 ║
 ╚══════════════════════════════════════════╝
     `);
@@ -253,7 +325,7 @@ app.listen(PORT, async () => {
     const auth = await autorizar();
     if (!auth) {
         console.log('\n⚠️ IMPORTANTE: Necesitas autorizar la app');
-        console.log('👉 Abrí http://localhost:3000/auth en tu navegador\n');
+        console.log('👉 Abrí http://localhost:' + PORT + '/auth en tu navegador\n');
     } else {
         await actualizarCargas();
     }

@@ -48,14 +48,28 @@
             </div>
         </div>
 
+        <!-- Búsqueda personalizable -->
+        <div class="filters" style="background: #e8f4f8; border: 2px solid #3498db;">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;">🔍 Búsqueda Actual: "<%= busquedaActual %>"</h3>
+            <form action="/cambiar-busqueda" method="POST" style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" name="nuevaBusqueda" placeholder="Ej: Factura, Remito, Pedido..." style="flex: 1;" required>
+                <button type="submit" class="btn" style="background: #27ae60;">
+                    Cambiar Búsqueda
+                </button>
+            </form>
+            <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
+                💡 Sugerencias: Carga dodedero, Factura, Remito, Despacho, Orden de compra
+            </div>
+        </div>
+
         <!-- Filtros -->
         <div class="filters">
             <div class="filter-group">
-                <input type="text" placeholder="🔍 Buscar carga...">
-                <select>
+                <input type="text" id="filtrarTabla" placeholder="🔍 Filtrar resultados...">
+                <select id="filtroEmpleado">
                     <option>Todos los empleados</option>
                 </select>
-                <button class="btn">Filtrar</button>
+                <button class="btn" onclick="aplicarFiltros()">Filtrar</button>
             </div>
         </div>
 
@@ -73,8 +87,8 @@
                 </thead>
                 <tbody>
                     <% cargas.forEach(carga => { %>
-                        <tr>
-                            <td class="carga-numero">#<%= carga.numeroCarga %></td>
+                        <tr data-empleado="<%= carga.empleado %>" data-asunto="<%= carga.asunto %>">
+                            <td class="carga-numero">#<%= carga.numeroReferencia %></td>
                             <td><%= carga.empleado %></td>
                             <td><%= carga.de %></td>
                             <td><%= carga.fechaFormateada %></td>
@@ -90,5 +104,32 @@
             Última actualización: <%= ultimaActualizacion %>
         </div>
     </main>
+    
+    <script>
+        // Filtrar tabla
+        document.getElementById('filtrarTabla').addEventListener('input', function(e) {
+            const busqueda = e.target.value.toLowerCase();
+            const filas = document.querySelectorAll('tbody tr');
+            
+            filas.forEach(fila => {
+                const texto = fila.textContent.toLowerCase();
+                fila.style.display = texto.includes(busqueda) ? '' : 'none';
+            });
+        });
+        
+        // Aplicar filtros
+        function aplicarFiltros() {
+            const empleado = document.getElementById('filtroEmpleado').value;
+            const filas = document.querySelectorAll('tbody tr');
+            
+            filas.forEach(fila => {
+                let mostrar = true;
+                if (empleado && empleado !== 'Todos los empleados') {
+                    mostrar = fila.dataset.empleado === empleado;
+                }
+                fila.style.display = mostrar ? '' : 'none';
+            });
+        }
+    </script>
 </body>
 </html>
