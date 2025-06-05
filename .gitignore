@@ -1,0 +1,25 @@
+# Dependencias 
+node_modules/ 
+ 
+# Variables de entorno 
+.env 
+ 
+# Credenciales y tokens 
+credentials.json 
+token.json 
+ 
+# Logs 
+*.log 
+npm-debug.log* 
+ 
+# Sistema operativo 
+.DS_Store 
+Thumbs.db 
+ 
+# Editor 
+.vscode/ 
+.idea/ 
+ 
+# Temporales 
+*.tmp 
+*.temp 

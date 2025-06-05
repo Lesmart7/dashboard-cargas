@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Cargas</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div>
+                    <h1>📦 Dashboard de Cargas</h1>
+                    <span class="status-badge <%= estadoConexion %>">
+                        Estado: <%= estadoConexion %>
+                    </span>
+                </div>
+                <div>
+                    <button class="btn" onclick="location.reload()">
+                        🔄 Actualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="container">
+        <!-- Estadísticas -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-number"><%= totalCargas %></div>
+                <div class="stat-label">Total de Cargas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">0</div>
+                <div class="stat-label">Cargas Hoy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">1</div>
+                <div class="stat-label">Empleados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">Demo</div>
+                <div class="stat-label">Modo</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters">
+            <div class="filter-group">
+                <input type="text" placeholder="🔍 Buscar carga...">
+                <select>
+                    <option>Todos los empleados</option>
+                </select>
+                <button class="btn">Filtrar</button>
+            </div>
+        </div>
+
+        <!-- Tabla -->
+        <div class="cargas-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Número</th>
+                        <th>Empleado</th>
+                        <th>Remitente</th>
+                        <th>Fecha</th>
+                        <th>Asunto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% cargas.forEach(carga => { %>
+                        <tr>
+                            <td class="carga-numero">#<%= carga.numeroCarga %></td>
+                            <td><%= carga.empleado %></td>
+                            <td><%= carga.de %></td>
+                            <td><%= carga.fechaFormateada %></td>
+                            <td><%= carga.asunto %></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Info actualización -->
+        <div class="update-info">
+            Última actualización: <%= ultimaActualizacion %>
+        </div>
+    </main>
+</body>
+</html>
